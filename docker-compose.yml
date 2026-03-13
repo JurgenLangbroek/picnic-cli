@@ -1,0 +1,13 @@
+services:
+  picnic-api:
+    build: ./server
+    ports:
+      - "3100:3000"
+    volumes:
+      - picnic-data:/data
+    environment:
+      - PICNIC_COUNTRY_CODE=NL
+    restart: unless-stopped
+
+volumes:
+  picnic-data:

@@ -1,0 +1,22 @@
+node_modules/
+dist/
+*.lockb
+bun.lock
+
+# CLI compiled binary
+cli/picnic
+
+# Cache & session data
+*.json.bak
+favorites-cache.json
+session.json
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Claude
+.claude/

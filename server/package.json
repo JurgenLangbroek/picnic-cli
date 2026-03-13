@@ -1,0 +1,12 @@
+{
+  "name": "picnic-api-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "picnic-api": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0"
+  }
+}
