@@ -6,9 +6,10 @@ import { handleUser } from "./routes/user";
 import { handlePayment } from "./routes/payment";
 import { handleRecipe } from "./routes/recipe";
 import { handleFavorites } from "./routes/favorites";
+import { handleRules } from "./routes/rules";
 import { errorResponse } from "./middleware/error-handler";
 
-const handlers = [handleAuth, handleCart, handleCatalog, handleDelivery, handleUser, handlePayment, handleRecipe, handleFavorites];
+const handlers = [handleAuth, handleCart, handleCatalog, handleDelivery, handleUser, handlePayment, handleRecipe, handleFavorites, handleRules];
 
 export async function route(req: Request): Promise<Response> {
   const url = new URL(req.url);

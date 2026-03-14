@@ -8,6 +8,7 @@ import * as user from "./commands/user";
 import * as payment from "./commands/payment";
 import * as recipe from "./commands/recipe";
 import * as favorites from "./commands/favorites";
+import * as rules from "./commands/rules";
 import { setVerbose } from "./client";
 
 function readLine(): Promise<string> {
@@ -90,7 +91,8 @@ Delivery:
   track <id>                    Live tracking
 
 Recipes:
-  recipes [--mine]              Browse recipes (--mine for your own)
+  recipes [--mine] [--all]      Browse recipes (--mine own, --all from meals page)
+  recipe-search <query>         Search recipes by name
   recipe <id>                   Recipe details
   save-recipe <id>              Save a recipe
   unsave-recipe <id>            Unsave a recipe
@@ -98,6 +100,11 @@ Recipes:
 
 Favorites:
   favorites [--limit N] [--deals] [--refresh] Frequently bought
+
+Rules:
+  rules                         List shopping rules
+  add-rule <cat> <type> <text>   Add rule (cat: product|recipe|week, type: override|preference)
+  remove-rule <id>              Remove a rule
 
 Account:
   user                          User profile
@@ -199,9 +206,15 @@ async function run() {
     }
     case "recipes": {
       const mine = args.includes("--mine");
-      let recipes = await recipe.getRecipes() as any[];
+      const all = args.includes("--all");
+      let recipes = all ? await recipe.getAllRecipes() as any[] : await recipe.getRecipes() as any[];
       if (mine) recipes = recipes.filter((r: any) => r.type === "user");
       return output(recipes);
+    }
+    case "recipe-search": {
+      const query = cleanArgs[1];
+      if (!query) { console.error("Usage: picnic recipe-search <query>"); process.exit(1); }
+      return output(await recipe.searchRecipes(query));
     }
     case "recipe": {
       const id = cleanArgs[1];
@@ -221,9 +234,33 @@ async function run() {
     case "recipe-add": {
       const productId = cleanArgs[1];
       const recipeId = cleanArgs[2];
-      if (!productId || !recipeId) { console.error("Usage: picnic recipe-add <productId> <recipeId> [qty]"); process.exit(1); }
-      const qty = cleanArgs[3] ? parseInt(cleanArgs[3]) : 1;
-      return output(await recipe.addProductToRecipe(productId, recipeId, qty));
+      if (!productId || !recipeId) { console.error("Usage: picnic recipe-add <productId> <recipeId> [qty] [--ingredient-id ID] [--ingredient-type TYPE] [--day-offset N] [--servings N]"); process.exit(1); }
+      const qty = cleanArgs[3] && !cleanArgs[3].startsWith("--") ? parseInt(cleanArgs[3]) : 1;
+      const ingIdIdx = cleanArgs.indexOf("--ingredient-id");
+      const ingTypeIdx = cleanArgs.indexOf("--ingredient-type");
+      const dayIdx = cleanArgs.indexOf("--day-offset");
+      const servIdx = cleanArgs.indexOf("--servings");
+      const ingredientId = ingIdIdx !== -1 ? cleanArgs[ingIdIdx + 1] : undefined;
+      const ingredientType = ingTypeIdx !== -1 ? cleanArgs[ingTypeIdx + 1] : undefined;
+      const dayOffset = dayIdx !== -1 ? parseInt(cleanArgs[dayIdx + 1]) : undefined;
+      const servings = servIdx !== -1 ? parseInt(cleanArgs[servIdx + 1]) : undefined;
+      return output(await recipe.addProductToRecipe(productId, recipeId, qty, ingredientId, ingredientType, dayOffset, servings));
+    }
+    case "rules":
+      return output(await rules.getRules());
+    case "add-rule": {
+      const category = cleanArgs[1];
+      const type = cleanArgs[2];
+      const text = cleanArgs.slice(3).join(" ");
+      if (!category || !type || !text) { console.error("Usage: picnic add-rule <product|recipe> <override|preference> <rule text>"); process.exit(1); }
+      if (category !== "product" && category !== "recipe" && category !== "week") { console.error("Category must be 'product', 'recipe', or 'week'"); process.exit(1); }
+      if (type !== "override" && type !== "preference") { console.error("Type must be 'override' or 'preference'"); process.exit(1); }
+      return output(await rules.addRule(category, type, text));
+    }
+    case "remove-rule": {
+      const id = cleanArgs[1];
+      if (!id) { console.error("Usage: picnic remove-rule <id>"); process.exit(1); }
+      return output(await rules.removeRule(id));
     }
     case "user":
       return output(await user.getUser());

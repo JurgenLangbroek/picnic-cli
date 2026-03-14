@@ -29,3 +29,10 @@ export async function post(path: string, data?: unknown): Promise<unknown> {
   if (!res.ok) throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
   return body;
 }
+
+export async function del(path: string): Promise<unknown> {
+  const res = await fetch(`${BASE_URL}${appendVerbose(path)}`, { method: "DELETE" });
+  const body = await res.json();
+  if (!res.ok) throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+  return body;
+}

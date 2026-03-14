@@ -1,5 +1,6 @@
 import { requireAuth } from "../picnic-client";
 import { formatCart } from "../formatters";
+import { getRulesByCategory, formatRulesHint } from "./rules";
 
 async function formatCartWithNames(raw: any) {
   const formatted = formatCart(raw);
@@ -39,14 +40,22 @@ export async function handleCart(path: string, req: Request, url: URL): Promise<
 
   if (path === "/cart" && req.method === "GET") {
     const cart = await requireAuth().cart.getCart();
-    return Response.json(verbose ? cart : await formatCartWithNames(cart));
+    if (verbose) return Response.json(cart);
+    const formatted = await formatCartWithNames(cart);
+    const weekRules = await getRulesByCategory("week");
+    if (weekRules.length > 0) formatted.rules = formatRulesHint(weekRules);
+    return Response.json(formatted);
   }
 
   if (path === "/cart/add" && req.method === "POST") {
     const { productId, quantity = 1 } = await req.json() as { productId: string; quantity?: number };
     if (!productId) return Response.json({ error: "productId required" }, { status: 400 });
     const cart = await requireAuth().cart.addProductToCart(productId, quantity);
-    return Response.json(verbose ? cart : await formatCartWithNames(cart));
+    if (verbose) return Response.json(cart);
+    const formatted = await formatCartWithNames(cart);
+    const productRules = await getRulesByCategory("product");
+    if (productRules.length > 0) formatted.rules = formatRulesHint(productRules);
+    return Response.json(formatted);
   }
 
   if (path === "/cart/remove" && req.method === "POST") {

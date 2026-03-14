@@ -11,6 +11,9 @@ cli/picnic
 favorites-cache.json
 session.json
 
+# Environment
+.env
+
 # OS
 .DS_Store
 

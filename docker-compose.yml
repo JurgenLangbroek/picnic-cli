@@ -5,6 +5,7 @@ services:
       - "3100:3000"
     volumes:
       - picnic-data:/data
+      - ${RULES_PATH:-./rules.json}:/data/rules.json
     environment:
       - PICNIC_COUNTRY_CODE=NL
     restart: unless-stopped

@@ -1,5 +1,6 @@
 import { requireAuth } from "../picnic-client";
-import { extractRecipesFromPage, extractRecipeDetails } from "../formatters";
+import { extractRecipesFromPage, extractRecipeDetails, extractRecipesFromSearchPage } from "../formatters";
+import { getRulesByCategory, formatRulesHint } from "./rules";
 
 export async function handleRecipe(path: string, req: Request, url: URL): Promise<Response | null> {
   const verbose = url.searchParams.get("verbose") === "true";
@@ -9,6 +10,29 @@ export async function handleRecipe(path: string, req: Request, url: URL): Promis
     const page = await client.app.getPage("cookbook-page-content");
     if (verbose) return Response.json(page);
     return Response.json(extractRecipesFromPage(page));
+  }
+
+  if (path === "/recipes/all" && req.method === "GET") {
+    const client = requireAuth();
+    const page = await client.app.getPage("see-more-recipes-page?segmentName=Alles&segmentType=ALL_RECIPES");
+    if (verbose) return Response.json(page);
+    return Response.json(extractRecipesFromPage(page));
+  }
+
+  if (path === "/recipes/search" && req.method === "GET") {
+    const query = url.searchParams.get("q");
+    if (!query) return Response.json({ error: "q parameter required" }, { status: 400 });
+    const client = requireAuth();
+    // Picnic's recipe search uses the regular search page with recipe context params
+    const page = await client.app.getPage(`search-page-results?search_term=${encodeURIComponent(query)}&page_context=MEALS&is_recipe=true`);
+    if (verbose) return Response.json(page);
+    const recipes = extractRecipesFromSearchPage(page);
+    const [recipeRules, weekRules] = await Promise.all([
+      getRulesByCategory("recipe"),
+      getRulesByCategory("week"),
+    ]);
+    const rules = [...recipeRules, ...weekRules];
+    return Response.json({ results: recipes, ...(rules.length > 0 ? { rules: formatRulesHint(rules) } : {}) });
   }
 
   const detailMatch = path.match(/^\/recipe\/([^/]+)$/);
@@ -21,9 +45,12 @@ export async function handleRecipe(path: string, req: Request, url: URL): Promis
     details.id = recipeId;
 
     // Enrich ingredients with product names from catalog
-    const productIds = details.ingredients.map((i: any) => i.productId);
-    if (productIds.length > 0) {
-      const names = await lookupProductNames(client, productIds);
+    const allProductIds = [
+      ...details.ingredients.map((i: any) => i.productId),
+      ...details.assumedAtHome,
+    ];
+    if (allProductIds.length > 0) {
+      const names = await lookupProductNames(client, allProductIds);
       for (const ing of details.ingredients) {
         const info = names.get(ing.productId);
         if (info) {
@@ -31,8 +58,14 @@ export async function handleRecipe(path: string, req: Request, url: URL): Promis
           ing.unit = info.unit;
         }
       }
+      // Replace assumedAtHome IDs with readable names
+      details.assumedAtHome = details.assumedAtHome.map(
+        (id: string) => names.get(id)?.name || id
+      );
     }
 
+    const productRules = await getRulesByCategory("product");
+    if (productRules.length > 0) details.rules = formatRulesHint(productRules);
     return Response.json(details);
   }
 
@@ -49,19 +82,37 @@ export async function handleRecipe(path: string, req: Request, url: URL): Promis
   }
 
   if (path === "/recipe/add-product" && req.method === "POST") {
-    const { productId, recipeId, count = 1 } = await req.json() as {
-      productId: string; recipeId: string; count?: number;
+    const { productId, recipeId, ingredientId, ingredientType, count = 1, dayOffset = 0, servings = 4 } = await req.json() as {
+      productId: string; recipeId: string; ingredientId?: string; ingredientType?: string;
+      count?: number; dayOffset?: number; servings?: number;
     };
     if (!productId || !recipeId) {
       return Response.json({ error: "productId and recipeId required" }, { status: 400 });
     }
-    // Note: Picnic's API doesn't support selling_unit_contexts on add_product.
-    // Recipe-context linking is a frontend-only feature in the Picnic app.
-    // We add the product to cart normally.
     const client = requireAuth();
-    const cart = await client.cart.addProductToCart(productId, count);
+    const contexts: any[] = [
+      {
+        type: "MEAL_PLAN",
+        day_relative_to_slot: dayOffset,
+        number_of_servings: servings,
+      },
+      {
+        type: "SELLING_GROUP",
+        selling_group_id: recipeId,
+        selling_group_creator_type: "PIM",
+        ...(ingredientId ? { selling_group_component_id: ingredientId } : {}),
+        ...(ingredientType ? { selling_group_component_type: ingredientType } : {}),
+        selling_group_component_swap_type: null,
+      },
+    ];
+    // TODO: Switch to client.cart.addProductToCart once picnic-api supports selling_unit_contexts
+    const cart = await client.sendRequest("POST", `/cart/add_product`, {
+      product_id: productId,
+      count,
+      selling_unit_contexts: contexts,
+    });
     if (verbose) return Response.json(cart);
-    return Response.json({ status: "added", productId, recipeId, count });
+    return Response.json({ status: "added", productId, recipeId, ingredientId, count });
   }
 
   return null;

@@ -29,6 +29,14 @@ export function formatCart(raw: any) {
   const selectedSlot = raw.selected_slot;
   const slotImplicit = selectedSlot?.state === "IMPLICIT";
 
+  // Strip unavailability info when no slot is explicitly selected,
+  // since stock checks default to tomorrow which is misleading
+  if (slotImplicit) {
+    for (const item of items) {
+      delete item.unavailable;
+    }
+  }
+
   const result: any = {
     items,
     totalCount: raw.total_count,
@@ -159,12 +167,15 @@ export function extractRecipesFromPage(page: any): any[] {
   return Array.from(recipes.values());
 }
 
+const CUPBOARD_TYPES = new Set(["CUPBOARD", "HIDDEN_CUPBOARD"]);
+
 // Extract recipe detail from selling-group-details Fusion page
 export function extractRecipeDetails(page: any): any {
   const details: any = {
     id: null,
     name: null,
     ingredients: [] as any[],
+    assumedAtHome: [] as string[],
   };
 
   // Find recipe name
@@ -176,14 +187,20 @@ export function extractRecipeDetails(page: any): any {
     for (const ing of ingredientsState) {
       const units = Object.values(ing.sellingUnits || {}) as any[];
       for (const unit of units) {
-        details.ingredients.push({
-          productId: unit.sellingUnitId,
-          price: unit.price,
-          quantity: unit.requiredAmount || 1,
-          type: ing.ingredientType, // CORE, CUPBOARD, CORE_STOCKABLE
-          available: ing.isAvailable,
-          swapped: ing.isSwapped,
-        });
+        if (CUPBOARD_TYPES.has(ing.ingredientType)) {
+          // Cupboard/pantry items — assumed to be at home
+          details.assumedAtHome.push(unit.sellingUnitId);
+        } else {
+          details.ingredients.push({
+            productId: unit.sellingUnitId,
+            ingredientId: ing.ingredientId, // UUID for selling_group_component_id
+            price: unit.price,
+            quantity: unit.requiredAmount || 1,
+            type: ing.ingredientType, // CORE, CORE_STOCKABLE, VARIATION
+            available: ing.isAvailable,
+            swapped: ing.isSwapped,
+          });
+        }
       }
     }
   }
@@ -223,6 +240,53 @@ function findIngredientsState(obj: any): any[] | null {
     }
   }
   return null;
+}
+
+// Extract recipes from search results Fusion page by walking the tree
+export function extractRecipesFromSearchPage(page: any): any[] {
+  const recipes: any[] = [];
+  const seen = new Set<string>();
+
+  function walk(obj: any): void {
+    if (!obj || typeof obj !== "object") return;
+    // Check if this is a TOUCHABLE with selling_group_id in onPress target
+    if (obj.type === "TOUCHABLE" && obj.onPress?.target) {
+      const target = String(obj.onPress.target);
+      const m = target.match(/selling_group_id=([a-f0-9]{24})/);
+      if (m && !seen.has(m[1])) {
+        seen.add(m[1]);
+        // Extract name and time from RICH_TEXT markdown children
+        const childText = JSON.stringify(obj);
+        const markdowns = [...childText.matchAll(/"markdown"\s*:\s*"([^"]+)"/g)].map(x => x[1]);
+        const name = markdowns[0] || null;
+        // Parse time from second markdown (format: #(#333333)30 minuten#(#333333))
+        let prepTime: string | null = null;
+        if (markdowns[1]) {
+          const timeMatch = markdowns[1].match(/(\d+\s*(?:uur|minuten)(?:\s+\d+\s*minuten)?)/);
+          if (timeMatch) prepTime = timeMatch[1];
+        }
+        // Parse tags from remaining markdowns
+        const tags = markdowns.slice(2)
+          .map(md => md.replace(/#\([^)]*\)/g, "").trim())
+          .filter(Boolean);
+        recipes.push({
+          id: m[1],
+          name: name ? name.replace(/\\u[\da-fA-F]{4}/g, (esc) => JSON.parse(`"${esc}"`)) : null,
+          preparationTime: prepTime,
+          ...(tags.length > 0 ? { tags } : {}),
+        });
+        return; // Don't recurse into recipe card children
+      }
+    }
+    if (Array.isArray(obj)) {
+      for (const item of obj) walk(item);
+    } else {
+      for (const val of Object.values(obj)) walk(val);
+    }
+  }
+
+  walk(page);
+  return recipes;
 }
 
 function extractBalancedBraces(text: string, start: number): string | null {
