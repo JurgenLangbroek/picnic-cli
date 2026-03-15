@@ -1,4 +1,4 @@
-import { get } from "../client";
+import { get } from "../client.js";
 
 export async function getFavorites(limit?: number, refresh?: boolean) {
   const params = new URLSearchParams();

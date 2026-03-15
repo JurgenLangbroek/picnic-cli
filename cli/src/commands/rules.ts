@@ -1,4 +1,4 @@
-import { get, post, del } from "../client";
+import { get, post, del } from "../client.js";
 
 export async function getRules() {
   return get("/rules");

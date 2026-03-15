@@ -1,15 +1,15 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
-import * as auth from "./commands/auth";
-import * as cart from "./commands/cart";
-import * as searchCmd from "./commands/search";
-import * as delivery from "./commands/delivery";
-import * as user from "./commands/user";
-import * as payment from "./commands/payment";
-import * as recipe from "./commands/recipe";
-import * as favorites from "./commands/favorites";
-import * as rules from "./commands/rules";
-import { setVerbose } from "./client";
+import * as auth from "./commands/auth.js";
+import * as cart from "./commands/cart.js";
+import * as searchCmd from "./commands/search.js";
+import * as delivery from "./commands/delivery.js";
+import * as user from "./commands/user.js";
+import * as payment from "./commands/payment.js";
+import * as recipe from "./commands/recipe.js";
+import * as favorites from "./commands/favorites.js";
+import * as rules from "./commands/rules.js";
+import { setVerbose } from "./client.js";
 
 function readLine(): Promise<string> {
   return new Promise((resolve) => {

@@ -1,4 +1,4 @@
-import { get } from "../client";
+import { get } from "../client.js";
 
 export async function getPaymentProfile() {
   return get("/payment/profile");

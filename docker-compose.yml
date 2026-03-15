@@ -8,7 +8,20 @@ services:
       - ${RULES_PATH:-./rules.json}:/data/rules.json
     environment:
       - PICNIC_COUNTRY_CODE=NL
+    healthcheck:
+      test: ["CMD", "bun", "run", "src/healthcheck.ts"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+    networks:
+      - shared
+      - default
     restart: unless-stopped
 
 volumes:
   picnic-data:
+
+networks:
+  shared:
+    name: openclaw_shared
+    external: true

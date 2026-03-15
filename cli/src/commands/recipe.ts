@@ -1,4 +1,4 @@
-import { get, post } from "../client";
+import { get, post } from "../client.js";
 
 export async function getRecipes() {
   return get("/recipes");

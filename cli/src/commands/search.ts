@@ -1,4 +1,4 @@
-import { get } from "../client";
+import { get } from "../client.js";
 
 export async function search(query: string, limit?: number) {
   const params = new URLSearchParams({ q: query });

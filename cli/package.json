@@ -1,9 +1,20 @@
 {
-  "name": "picnic-cli",
-  "version": "1.0.0",
-  "private": true,
+  "name": "@jurgenlangbroek/picnic-cli",
+  "version": "1.1.0",
+  "description": "CLI for Picnic grocery shopping",
   "type": "module",
+  "bin": {
+    "picnic": "./dist/picnic.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/picnic.js"
+  },
   "devDependencies": {
-    "@types/bun": "^1.2.0"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
   }
 }

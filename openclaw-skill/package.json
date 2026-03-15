@@ -1,0 +1,17 @@
+{
+  "name": "@jurgenlangbroek/openclaw-skill-picnic",
+  "version": "1.0.0",
+  "description": "OpenClaw skill for Picnic grocery shopping",
+  "files": [
+    "SKILL.md"
+  ],
+  "keywords": [
+    "openclaw",
+    "skill",
+    "picnic",
+    "grocery"
+  ],
+  "dependencies": {
+    "@jurgenlangbroek/picnic-cli": "^1.0.0"
+  }
+}
