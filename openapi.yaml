@@ -1,0 +1,1223 @@
+openapi: 3.1.0
+info:
+  title: Picnic API
+  description: Proxy API for the Picnic grocery service. Wraps the Picnic mobile app API with a REST interface for cart management, delivery scheduling, recipe browsing, and more.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3010
+    description: Local
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags: [System]
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+
+  # Auth
+  /auth/status:
+    get:
+      summary: Get authentication status
+      operationId: getAuthStatus
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current auth status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [authenticated, unauthenticated]
+
+  /auth/login:
+    post:
+      summary: Login with email and password
+      operationId: login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [authenticated, 2fa_required]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/2fa/generate:
+    post:
+      summary: Send 2FA SMS code
+      operationId: generate2fa
+      tags: [Auth]
+      responses:
+        "200":
+          description: 2FA code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [2fa_sent]
+
+  /auth/2fa/verify:
+    post:
+      summary: Verify 2FA code
+      operationId: verify2fa
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [authenticated]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/logout:
+    post:
+      summary: Logout
+      operationId: logout
+      tags: [Auth]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [logged_out]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # User
+  /user:
+    get:
+      summary: Get user profile
+      operationId: getUser
+      tags: [User]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Catalog
+  /catalog/search:
+    get:
+      summary: Search products
+      operationId: searchCatalog
+      tags: [Catalog]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /catalog/suggestions:
+    get:
+      summary: Get search suggestions
+      operationId: getCatalogSuggestions
+      tags: [Catalog]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Suggestions from Picnic API
+          content:
+            application/json:
+              schema: {}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /catalog/product/{productId}:
+    get:
+      summary: Get product details
+      operationId: getProduct
+      tags: [Catalog]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Product details
+          content:
+            application/json:
+              schema: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Cart
+  /cart:
+    get:
+      summary: Get current cart
+      operationId: getCart
+      tags: [Cart]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Current cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /cart/add:
+    post:
+      summary: Add product to cart
+      operationId: addToCart
+      tags: [Cart]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId]
+              properties:
+                productId:
+                  type: string
+                quantity:
+                  type: integer
+                  default: 1
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /cart/remove:
+    post:
+      summary: Remove product from cart
+      operationId: removeFromCart
+      tags: [Cart]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId]
+              properties:
+                productId:
+                  type: string
+                quantity:
+                  type: integer
+                  default: 1
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /cart/clear:
+    post:
+      summary: Clear cart
+      operationId: clearCart
+      tags: [Cart]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Empty cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Deliveries
+  /delivery/slots:
+    get:
+      summary: Get available delivery slots
+      operationId: getDeliverySlots
+      tags: [Delivery]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Available delivery slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeliverySlot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /delivery/slot:
+    post:
+      summary: Select a delivery slot
+      operationId: selectDeliverySlot
+      tags: [Delivery]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slotId]
+              properties:
+                slotId:
+                  type: string
+      responses:
+        "200":
+          description: Slot selected
+          content:
+            application/json:
+              schema: {}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /deliveries:
+    get:
+      summary: List deliveries
+      operationId: getDeliveries
+      tags: [Delivery]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Delivery list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeliverySummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /delivery/{deliveryId}:
+    get:
+      summary: Get delivery details
+      operationId: getDelivery
+      tags: [Delivery]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Delivery details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /delivery/{deliveryId}/position:
+    get:
+      summary: Get delivery driver position
+      operationId: getDeliveryPosition
+      tags: [Delivery]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Driver position
+          content:
+            application/json:
+              schema: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /delivery/{deliveryId}/rate:
+    post:
+      summary: Rate a delivery
+      operationId: rateDelivery
+      tags: [Delivery]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [score]
+              properties:
+                score:
+                  type: number
+      responses:
+        "200":
+          description: Rating submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: {}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Recipes
+  /recipes:
+    get:
+      summary: Get saved recipes
+      operationId: getRecipes
+      tags: [Recipes]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Saved recipes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecipeSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /recipes/all:
+    get:
+      summary: Get all available recipes
+      operationId: getAllRecipes
+      tags: [Recipes]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: All recipes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecipeSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /recipes/search:
+    get:
+      summary: Search recipes
+      operationId: searchRecipes
+      tags: [Recipes]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Recipe search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RecipeSearchResult"
+                  rules:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RuleRef"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /recipe/{recipeId}:
+    get:
+      summary: Get recipe details
+      operationId: getRecipe
+      tags: [Recipes]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Recipe details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /recipe/{recipeId}/save:
+    post:
+      summary: Save a recipe
+      operationId: saveRecipe
+      tags: [Recipes]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recipe saved
+          content:
+            application/json:
+              schema: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /recipe/{recipeId}/unsave:
+    post:
+      summary: Unsave a recipe
+      operationId: unsaveRecipe
+      tags: [Recipes]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: recipeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recipe unsaved
+          content:
+            application/json:
+              schema: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /recipe/add-product:
+    post:
+      summary: Add a recipe product to cart
+      operationId: addRecipeProduct
+      tags: [Recipes]
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: "#/components/parameters/verbose"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, recipeId]
+              properties:
+                productId:
+                  type: string
+                recipeId:
+                  type: string
+                ingredientId:
+                  type: string
+                ingredientType:
+                  type: string
+                count:
+                  type: integer
+                dayOffset:
+                  type: integer
+                servings:
+                  type: integer
+      responses:
+        "200":
+          description: Product added from recipe
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [added]
+                  productId:
+                    type: string
+                  recipeId:
+                    type: string
+                  ingredientId:
+                    type: string
+                  count:
+                    type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Favorites
+  /favorites:
+    get:
+      summary: Get favorite products with price tracking
+      operationId: getFavorites
+      tags: [Favorites]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: refresh
+          in: query
+          description: Force cache refresh
+          schema:
+            type: string
+            enum: ["true"]
+        - $ref: "#/components/parameters/verbose"
+      responses:
+        "200":
+          description: Favorite products with current prices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Favorite"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Payment
+  /payment/profile:
+    get:
+      summary: Get payment profile
+      operationId: getPaymentProfile
+      tags: [Payment]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Payment profile
+          content:
+            application/json:
+              schema: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /payment/transactions:
+    get:
+      summary: Get wallet transactions
+      operationId: getPaymentTransactions
+      tags: [Payment]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: Transaction list
+          content:
+            application/json:
+              schema: {}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # Rules
+  /rules:
+    get:
+      summary: List rules
+      operationId: getRules
+      tags: [Rules]
+      security:
+        - sessionAuth: []
+      responses:
+        "200":
+          description: All rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      summary: Create a rule
+      operationId: createRule
+      tags: [Rules]
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, category, rule]
+              properties:
+                type:
+                  type: string
+                  enum: [override, preference]
+                category:
+                  type: string
+                  enum: [product, recipe, week]
+                rule:
+                  type: string
+      responses:
+        "201":
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /rules/{ruleId}:
+    delete:
+      summary: Delete a rule
+      operationId: deleteRule
+      tags: [Rules]
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: ruleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Session-based auth. Login via /auth/login and complete 2FA. The server maintains a single session internally.
+
+  parameters:
+    verbose:
+      name: verbose
+      in: query
+      description: Return raw upstream Picnic API response instead of formatted
+      schema:
+        type: string
+        enum: ["true"]
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+            example:
+              error: Not authenticated
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: object
+          nullable: true
+          properties:
+            street:
+              type: string
+            houseNumber:
+              type: string
+            houseSuffix:
+              type: string
+            city:
+              type: string
+            postalCode:
+              type: string
+
+    SearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        unit:
+          type: string
+        maxCount:
+          type: integer
+
+    Cart:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        totalCount:
+          type: integer
+        totalPrice:
+          type: number
+        checkoutTotal:
+          type: number
+        selectedSlot:
+          type: string
+          nullable: true
+        fees:
+          type: array
+          items: {}
+        warnings:
+          type: array
+          items:
+            type: string
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleRef"
+
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: integer
+        unit:
+          type: string
+        unavailable:
+          type: object
+          properties:
+            reason:
+              type: string
+            explanation:
+              type: string
+            replacements:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                    nullable: true
+
+    DeliverySlot:
+      type: object
+      properties:
+        id:
+          type: string
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        cutOff:
+          type: string
+          format: date-time
+        available:
+          type: boolean
+        selected:
+          type: boolean
+        minOrder:
+          type: number
+
+    DeliverySummary:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        slotStart:
+          type: string
+          format: date-time
+        slotEnd:
+          type: string
+          format: date-time
+        eta:
+          type: object
+          nullable: true
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+        deliveredAt:
+          type: object
+          nullable: true
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+        orders:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              total:
+                type: number
+              status:
+                type: string
+
+    DeliveryDetail:
+      allOf:
+        - $ref: "#/components/schemas/DeliverySummary"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  price:
+                    type: number
+                  quantity:
+                    type: integer
+            itemCount:
+              type: integer
+
+    RecipeSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [user, picnic]
+        servings:
+          type: integer
+          nullable: true
+        preparationTime:
+          type: string
+          nullable: true
+        qualityCue:
+          type: string
+          nullable: true
+        ingredientCount:
+          type: integer
+          nullable: true
+
+    RecipeSearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        preparationTime:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+
+    RecipeDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        ingredients:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+              ingredientId:
+                type: string
+              price:
+                type: number
+              quantity:
+                type: integer
+              type:
+                type: string
+              available:
+                type: boolean
+              swapped:
+                type: boolean
+              name:
+                type: string
+              unit:
+                type: string
+        assumedAtHome:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: object
+                properties:
+                  name:
+                    type: string
+                  unit:
+                    type: string
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleRef"
+
+    Favorite:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        unit:
+          type: string
+        timesBought:
+          type: integer
+        lastPricePaid:
+          type: number
+        currentPrice:
+          type: number
+          nullable: true
+        onSale:
+          type: boolean
+        saving:
+          type: number
+
+    Rule:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [override, preference]
+        category:
+          type: string
+          enum: [product, recipe, week]
+        rule:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    RuleRef:
+      type: object
+      properties:
+        type:
+          type: string
+        rule:
+          type: string
