@@ -5,7 +5,7 @@ requires:
   bins:
     - picnic
 env:
-  PICNIC_API_URL: http://localhost:3100
+  PICNIC_API_URL: http://picnic.localhost:1355
 ---
 
 # Picnic Grocery Shopping

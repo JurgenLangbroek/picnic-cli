@@ -2,7 +2,7 @@ services:
   picnic-api:
     build: ./server
     ports:
-      - "3100:3000"
+      - "3010:3000"
     volumes:
       - picnic-data:/data
       - ${RULES_PATH:-./rules.json}:/data/rules.json
