@@ -79,7 +79,25 @@ export function formatDeliveries(raw: any[]) {
 }
 
 export function formatDelivery(raw: any) {
-  return formatDeliveries([raw])[0];
+  const summary = formatDeliveries([raw])[0] as any;
+  // Add item details for single delivery view
+  const items: any[] = [];
+  for (const order of raw.orders || []) {
+    for (const line of order.items || []) {
+      for (const article of line.items || []) {
+        const qty = (article.decorators || []).find((d: any) => d.type === "QUANTITY")?.quantity ?? 1;
+        items.push({
+          id: article.id,
+          name: article.name,
+          price: line.display_price || line.price,
+          quantity: qty,
+        });
+      }
+    }
+  }
+  summary.items = items;
+  summary.itemCount = items.length;
+  return summary;
 }
 
 export function formatSearchResults(raw: any[]) {

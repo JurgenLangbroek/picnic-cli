@@ -17,7 +17,9 @@ export async function handleDelivery(path: string, req: Request, url: URL): Prom
   }
 
   if (path === "/deliveries" && req.method === "GET") {
-    const deliveries = await requireAuth().delivery.getDeliveries();
+    let deliveries = await requireAuth().delivery.getDeliveries();
+    const limit = parseInt(url.searchParams.get("limit") || "5");
+    if (!verbose && limit > 0) deliveries = deliveries.slice(0, limit);
     return Response.json(verbose ? deliveries : formatDeliveries(deliveries));
   }
 

@@ -8,7 +8,7 @@ export async function handleCatalog(path: string, req: Request, url: URL): Promi
     const q = url.searchParams.get("q");
     if (!q) return Response.json({ error: "q parameter required" }, { status: 400 });
     let results = await requireAuth().catalog.search(q);
-    const limit = parseInt(url.searchParams.get("limit") || "0");
+    const limit = parseInt(url.searchParams.get("limit") || "10");
     if (limit > 0) results = results.slice(0, limit);
     return Response.json(verbose ? results : formatSearchResults(results));
   }
